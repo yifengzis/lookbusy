@@ -3,7 +3,8 @@
 
 AC_PREREQ(2.59)
 AC_INIT(lookbusy, 1.4, lookbusy@devin.com)
-AC_CONFIG_SRCDIR([lb.c])
+AC_CONFIG_AUX_DIR([build-aux])
+AC_CONFIG_SRCDIR([src/lb.c])
 AM_CONFIG_HEADER(config.h)
 AM_INIT_AUTOMAKE([-Wall -Werror])
 
