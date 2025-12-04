@@ -6,7 +6,7 @@ AC_INIT(lookbusy, 1.4, lookbusy@devin.com)
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_SRCDIR([src/lb.c])
 AM_CONFIG_HEADER(config.h)
-AM_INIT_AUTOMAKE([-Wall -Werror])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 
 # Checks for programs.
 AC_PROG_CC
