@@ -183,7 +183,7 @@ static int parse_timespan(const char *str, int *r)
         errbuf[sizeof(errbuf)-1] = '\0';
 
         if (e != REG_NOMATCH)
-            err("regexec: Couldn't match '%s' in '%s': %s\n",
+            err("regexec: 无法在 '%s' 中匹配 '%s': %s\n",
                 pattern, str, errbuf);
         return -1;
     }
@@ -218,7 +218,7 @@ static int parse_large_size(const char *str, off_t *r)
         errbuf[sizeof(errbuf)-1] = '\0';
 
         if (e != REG_NOMATCH)
-            err("regexec: Couldn't match '%s' in '%s': %s\n",
+            err("regexec: 无法在 '%s' 中匹配 '%s': %s\n",
                 pattern, str, errbuf);
         return -1;
     }
@@ -254,7 +254,7 @@ static int parse_size(const char *str, size_t *r)
         errbuf[sizeof(errbuf)-1] = '\0';
 
         if (e != REG_NOMATCH)
-            err("regexec: Couldn't match '%s' in '%s': %s\n",
+            err("regexec: 无法在 '%s' 中匹配 '%s': %s\n",
                 pattern, str, errbuf);
         return -1;
     }
@@ -288,7 +288,7 @@ static int parse_int_range(const char *str, int *start, int *end)
         errbuf[sizeof(errbuf)-1] = '\0';
 
         if (e != REG_NOMATCH)
-            err("regexec: Couldn't match '%s' in '%s': %s\n",
+            err("regexec: 无法在 '%s' 中匹配 '%s': %s\n",
                 pattern, str, errbuf);
         return -1;
     }
@@ -307,7 +307,7 @@ static void shutdown()
         int i;
         for (i = 0; i < n_cpu_pids; i++) {
             if (cpu_pids[i] != 0) {
-                say(1, "killing CPU spinner %d (PID %d)\n", i, cpu_pids[i]);
+                say(1, "正在终止 CPU 负载进程 %d (PID %d)\n", i, cpu_pids[i]);
                 kill(cpu_pids[i], SIGTERM);
             }
         }
@@ -315,7 +315,7 @@ static void shutdown()
         cpu_pids = NULL;
     }
     if (mem_pid != 0) {
-        say(1, "killing mem spinner %d\n", mem_pid);
+        say(1, "正在终止内存负载进程 %d\n", mem_pid);
         kill(mem_pid, SIGTERM);
     }
     if (mem_stir_buffer != NULL) {
@@ -326,7 +326,7 @@ static void shutdown()
         int i;
         for (i = 0; i < n_disk_pids; i++) {
             if (disk_pids[i] != 0) {
-                say(1,"killing disk churner %d (PID %d)\n", i, disk_pids[i]);
+                say(1,"正在终止磁盘负载进程 %d (PID %d)\n", i, disk_pids[i]);
                 kill(disk_pids[i], SIGTERM);
             }
         }
@@ -350,11 +350,11 @@ static RETSIGTYPE sigchld_handler(int signum)
 {
     int status;
     pid_t which = wait(&status);
-    err("got SIGCHLD for dead child %d", which);
+    err("收到已终止子进程 %d 的 SIGCHLD 信号", which);
     if (WIFSIGNALED(status)) {
-        err("; exited with signal %d\n", WTERMSIG(status));
+        err("; 退出信号 %d\n", WTERMSIG(status));
     } else {
-        err("; exited with status %d\n", WEXITSTATUS(status));
+        err("; 退出状态 %d\n", WEXITSTATUS(status));
     }
     shutdown();
 }
@@ -407,7 +407,7 @@ static int get_cpu_count()
                 char errbuf[128];
                 regerror(e, &ex, errbuf, sizeof(errbuf)-1);
                 errbuf[sizeof(errbuf)-1] = '\0';
-                err("regexec: Couldn't match '%s' in '%s': %s\n",
+                err("regexec: 无法在 '%s' 中匹配 '%s': %s\n",
                     pattern, s, errbuf);
                 return -1;
             }
@@ -415,8 +415,8 @@ static int get_cpu_count()
     }
     fclose(f);
     if (n == 0) {
-        err("Couldn't get any CPU counts, assuming one CPU core\n");
-        err("If this is wrong, override with --ncpus\n");
+        err("无法获取 CPU 核心数，假设为单核\n");
+        err("如果不正确，请使用 --ncpus 覆盖\n");
         ncpus = 1;
     }
     return n;
@@ -463,7 +463,7 @@ static uint64_t get_cpu_busy_time()
         regerror(r, ex, errbuf, sizeof(errbuf)-1);
         errbuf[sizeof(errbuf)-1] = '\0';
 
-        err("regexec: Couldn't match '%s' in '%s': %s\n", pattern, s, errbuf);
+        err("regexec: 无法在 '%s' 中匹配 '%s': %s\n", pattern, s, errbuf);
         _exit(1);
     }
 
@@ -471,8 +471,8 @@ static uint64_t get_cpu_busy_time()
     ntime = atol(s + matches[2].rm_so);
     stime = atol(s + matches[3].rm_so);
 
-    say(3, "cpu_spin(%d): current utime=%"PRIu64
-           " ntime=%"PRIu64" stime=%"PRIu64" total=%"PRIu64"\n",
+    say(3, "cpu_spin(%d): 当前 utime=%"PRIu64
+           " ntime=%"PRIu64" stime=%"PRIu64" 总计=%"PRIu64"\n",
             getpid(), utime, ntime, stime, utime + ntime + stime);
     fclose(f);
     return utime + ntime + stime;
@@ -491,7 +491,7 @@ static void cpu_spin_calibrate(int util, uint64_t *busycount, suseconds_t *sleep
     struct timeval tv, tv2;
     const uint64_t iterations = 10000000;
 
-    say(1, "cpu_spin (%d): measuring CPU\n", getpid());
+    say(1, "cpu_spin (%d): 正在测量 CPU\n", getpid());
     if (gettimeofday(&tv, NULL) == -1) shutdown();
     for (counter = 0; counter < iterations; counter++) {
         squander_time(counter);
@@ -506,10 +506,10 @@ static void cpu_spin_calibrate(int util, uint64_t *busycount, suseconds_t *sleep
      */
 
     *sleeptime = 100000 - *busycount / (counter / elapsed);
-    say(3, "cpu_spin (%d): %"PRIu64" iterations in %lld usec (%lld/sec)\n",
+    say(3, "cpu_spin (%d): %"PRIu64" 次迭代耗时 %lld 微秒 (%lld/秒)\n",
            getpid(), counter, elapsed, countspeed);
 
-    say(1, "cpu_spin (%d): est. %d%% util at %"PRIu64" cycles, %u usec sleep\n",
+    say(1, "cpu_spin (%d): 预计 %d%% 利用率需要 %"PRIu64" 周期，休眠 %u 微秒\n",
             getpid(), util, *busycount, *sleeptime);
 }
 
@@ -567,7 +567,7 @@ static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *
 
     cpu_spin_calibrate(util, &busycount, &sleeptime);
 
-    say(2, "cpu_spin (%d): spinning cpu\n", getpid());
+    say(2, "cpu_spin (%d): 正在运行 CPU 负载\n", getpid());
     while (1) {
         struct timeval tv;
         long long counter;
@@ -585,15 +585,15 @@ static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *
              * overcompensating
              */
             adjust = (int64_t)(((util - actual) * busycount) / 100. / ncpus);
-            say(3, "cpu_spin (%d): last iter: count=%lld"
-                   " (~%lld of %lld); adjust=%lld\n",
+            say(3, "cpu_spin (%d): 上次迭代: count=%lld"
+                   " (~%lld / %lld); 调整=%lld\n",
                    getpid(), busycount, busy, wall, 
                    adjust);
             if (adjust < 0 && busycount < -adjust) {
-                say(2, "cpu_spin (%d): usage at lower limit\n", getpid());
+                say(2, "cpu_spin (%d): 使用率处于下限\n", getpid());
                 busycount = minimum_cycles;
             } else if (adjust > 0 && UINT64_MAX - adjust < busycount) {
-                say(2, "cpu_spin (%d): usage at upper limit\n", getpid());
+                say(2, "cpu_spin (%d): 使用率处于上限\n", getpid());
             } else {
                 busycount += adjust;
                 if (busycount < minimum_cycles)
@@ -602,9 +602,9 @@ static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *
 
             if ((adjust < 0 && oldadjust > 0) ||
                 (adjust > 0 && oldadjust < 0)) {
-                say(3, "cpu_spin (%d): adjusted approximately correctly\n",
+                say(3, "cpu_spin (%d): 已调整至大致正确\n",
                        getpid());
-                say(3, "cpu_spin (%d): spin count %"PRIu64"\n", getpid(), busycount);
+                say(3, "cpu_spin (%d): 负载计数 %"PRIu64"\n", getpid(), busycount);
             }
         } else {
             first = 0;
@@ -613,12 +613,12 @@ static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *
         walltime = tv.tv_sec * 1000000 + tv.tv_usec;
         busytime = get_cpu_busy_time();
 
-        say(3, "cpu_spin (%d): spinning (0 to %"PRIu64")...\n", getpid(), busycount);
+        say(3, "cpu_spin (%d): 正在空转 (0 到 %"PRIu64")...\n", getpid(), busycount);
         for (counter = 0; counter < busycount; counter++) {
             squander_time(counter);
         }
 
-        say(3, "cpu_spin (%d): sleeping...\n", getpid());
+        say(3, "cpu_spin (%d): 正在休眠...\n", getpid());
         usleep(sleeptime);
         gettimeofday(&tv, NULL);
         walltime2 = tv.tv_sec * 1000000 + tv.tv_usec;
@@ -627,7 +627,7 @@ static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *
         util = cpu_spin_compute_util(c_cpu_util_mode, util_l, util_h, tv.tv_sec);
 
         /* "elapsed" here doesn't necessarily refer only to our own usage */
-        say(2, "cpu_spin (%d): %"PRIu64" iterations; %"PRIu64" CPU-jiffies elapsed\n",
+        say(2, "cpu_spin (%d): %"PRIu64" 次迭代; 经过 %"PRIu64" CPU-jiffies\n",
                getpid(), counter, busytime2-busytime,
                ncpus);
     }
@@ -641,17 +641,17 @@ static void mem_stir(long long asz, long long dummy, long long dummy2, void *dum
     const size_t pagesize = LB_PAGE_SIZE;
     const size_t sz = asz;
 
-    say(1, "mem_stir (%d): stirring %llu bytes...\n", getpid(), sz);
+    say(1, "mem_stir (%d): 正在扰动 %llu 字节...\n", getpid(), sz);
     if ((mem_stir_buffer = (char *)malloc(sz)) == NULL) {
         perror("malloc");
         _exit(1);
     }
 
-    say(2, "mem_stir (%d): dirtying buffer...", getpid());
+    say(2, "mem_stir (%d): 正在弄脏缓冲区...", getpid());
     for (p = mem_stir_buffer; p < mem_stir_buffer + sz; p++) {
         *p = (char)((uintptr_t)p & 0xff);
     }
-    say(2, "done\n");
+    say(2, "完成\n");
 
     char *sp = mem_stir_buffer;
     char *dp = mem_stir_buffer;
@@ -666,11 +666,11 @@ static void mem_stir(long long asz, long long dummy, long long dummy2, void *dum
         sp += pagesize * 1;
         dp += pagesize * 5;
         if (sp >= mem_stir_buffer + sz) {
-            say(2, "mem_stir (%d): read position wrapped\n", getpid());
+            say(2, "mem_stir (%d): 读取位置回绕\n", getpid());
             sp = mem_stir_buffer;
         }
         if (dp >= mem_stir_buffer + sz) {
-            say(2, "mem_stir (%d): write position wrapped\n", getpid());
+            say(2, "mem_stir (%d): 写入位置回绕\n", getpid());
             dp = mem_stir_buffer;
         }
         usleep(c_mem_stir_sleep);
@@ -687,11 +687,11 @@ static void disk_churn(long long dummy0, long long dummy, long long dummy2, void
     off_t rpos, wpos;
 
     say(1, (sizeof(off_t) == 8 ?
-            "disk_churn (%d): churning disk on %s (%ld bytes)\n" :
-            "disk_churn (%d): churning disk on %s (%d bytes)\n"),
+            "disk_churn (%d): 正在 %s 上进行磁盘扰动 (%ld 字节)\n" :
+            "disk_churn (%d): 正在 %s 上进行磁盘扰动 (%d 字节)\n"),
            getpid(), path, sz);
     if ((fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1) {
-        err("disk_churn (%d): Couldn't create %s: %s\n",
+        err("disk_churn (%d): 无法创建 %s: %s\n",
                 getpid(), path, strerror(errno));
         exit(1);
     }
@@ -722,12 +722,12 @@ static void disk_churn(long long dummy0, long long dummy, long long dummy2, void
         ssize_t r;
 
         if (rpos >= sz) {
-            say(2, "disk_churn (%d) reader reached EOF at %ld\n",
+            say(2, "disk_churn (%d) 读取器在 %ld 处到达 EOF\n",
                    getpid(), (long)rpos);
             rpos = 0;
         }
         if (wpos >= sz) {
-            say(2, "disk_churn (%d) writer reached EOF at %ld\n",
+            say(2, "disk_churn (%d) 写入器在 %ld 处到达 EOF\n",
                    getpid(), (long)wpos);
             wpos = 0;
             witer++;
@@ -752,12 +752,12 @@ static void disk_churn(long long dummy0, long long dummy, long long dummy2, void
         }
         r = read(fd, block, c_disk_churn_block_size);
         if (r == -1) {
-            err("disk_churn (%d): error reading from %s at %ld: %s\n",
+            err("disk_churn (%d): 读取 %s 时出错，位置 %ld: %s\n",
                     getpid(), path, (long)rpos, strerror(errno));
             exit(1);
         }
         if (r == 0) {
-            say(1, "disk_churn (%d): reader reached EOF early (at %ld)\n",
+            say(1, "disk_churn (%d): 读取器过早到达 EOF (在 %ld)\n",
                    getpid(), (long)rpos);
             rpos = 0;
         }
@@ -791,7 +791,7 @@ static pid_t fork_and_call(char *desc, spinner_fn fn, long long arg1, long long 
         (*fn)(arg1, arg2, arg3, argP, argP2);
         exit(0);
     } else {
-        say(1, "lookbusy (%d): %s started, PID %d\n", getpid(), desc, p);
+        say(1, "lookbusy (%d): %s 已启动，PID %d\n", getpid(), desc, p);
         return p;
     }
 }
@@ -806,7 +806,7 @@ static pid_t *start_cpu_spinners(int *ncpus, int util_l, int util_h)
         return NULL;
     }
     int i;
-    say(1, "cpu_spin (%d): starting %d spinner(s) for %d%%-%d%% usage\n",
+    say(1, "cpu_spin (%d): 正在启动 %d 个负载进程，目标使用率 %d%%-%d%%\n",
            getpid(), *ncpus, util_l, util_h);
     for (i = 0; i < *ncpus; i++) {
         pids[i] = fork_and_call("CPU spinner", cpu_spin, *ncpus, util_l, util_h, NULL, NULL);
@@ -824,7 +824,7 @@ static pid_t *start_disk_stirrer(off_t util, char **paths, size_t paths_n)
         if (stat(paths[i], &st) == 0) {
             if (S_ISDIR(st.st_mode)) {
                 if (access(paths[i], W_OK) != 0) {
-                    err("disk path %s is not writable\n", paths[i]);
+                    err("磁盘路径 %s 不可写\n", paths[i]);
                     shutdown();
                 }
                 char *tmpl = (char *)malloc(strlen(paths[i]) + 32);
@@ -865,39 +865,39 @@ static pid_t start_mem_whisker(size_t sz)
 static void usage()
 {
     static const char *msg =
-"lookbusy [ -h ] [ options ]\n"
-"General options:\n"
-"  -h, --help           Commandline help (you're reading it)\n"
-"  -v, --verbose        Verbose output (may be repeated)\n"
-"  -q, --quiet          Be quiet, produce output on errors only\n"
-"CPU usage options:\n"
-"  -c, --cpu-util=PCT,  Desired utilization of each CPU, in percent (default\n"
-"      --cpu-util=RANGE   50%).  If 'curve' CPU usage mode is chosen, a range\n"
-"                         of the form MIN-MAX should be given.\n"
-"  -n, --ncpus=NUM      Number of CPUs to keep busy (default: autodetected)\n"
-"  -r, --cpu-mode=MODE  Utilization mode ('fixed' or 'curve', see lookbusy(1))\n"
+"lookbusy [ -h ] [ 选项 ]\n"
+"通用选项:\n"
+"  -h, --help           命令行帮助 (即本信息)\n"
+"  -v, --verbose        详细输出 (可重复使用以增加详细程度)\n"
+"  -q, --quiet          静默模式，仅在出错时输出\n"
+"CPU 使用选项:\n"
+"  -c, --cpu-util=PCT,  每个 CPU 的期望利用率，百分比 (默认\n"
+"      --cpu-util=RANGE   50%)。如果选择了 'curve' (曲线) 模式，\n"
+"                         应提供 MIN-MAX 形式的范围。\n"
+"  -n, --ncpus=NUM      保持忙碌的 CPU 数量 (默认: 自动检测)\n"
+"  -r, --cpu-mode=MODE  利用率模式 ('fixed' 或 'curve'，参见 lookbusy(1))\n"
 "  -p, --cpu-curve-peak=TIME\n"
-"                       Offset of peak utilization within curve period, in\n"
-"                         seconds (append 'm', 'h', 'd' for other units)\n"
+"                       曲线周期内峰值利用率的偏移量，单位秒\n"
+"                         (后缀 'm', 'h', 'd' 表示其他单位)\n"
 "  -P, --cpu-curve-period=TIME\n"
-"                       Duration of utilization curve period, in seconds (append\n"
-"		       'm', 'h', 'd' for other units)\n"
-"Memory usage options:\n"
-"  -m, --mem-util=SIZE   Amount of memory to use (in bytes, followed by KB, MB,\n"
-"                         or GB for other units; see lookbusy(1))\n"
-"  -M, --mem-sleep=TIME Time to sleep between iterations, in usec (default 1000)\n"
-"Disk usage options:\n"
-"  -d, --disk-util=SIZE Size of files to use for disk churn (in bytes,\n"
-"                         followed by KB, MB, GB or TB for other units)\n"
+"                       利用率曲线周期的持续时间，单位秒 (后缀\n"
+"		       'm', 'h', 'd' 表示其他单位)\n"
+"内存使用选项:\n"
+"  -m, --mem-util=SIZE   使用的内存量 (字节，后缀 KB, MB,\n"
+"                         或 GB 表示其他单位; 参见 lookbusy(1))\n"
+"  -M, --mem-sleep=TIME 迭代间的休眠时间，单位微秒 (默认 1000)\n"
+"磁盘使用选项:\n"
+"  -d, --disk-util=SIZE 用于磁盘扰动的文件大小 (字节，\n"
+"                         后缀 KB, MB, GB 或 TB 表示其他单位)\n"
 "  -b, --disk-block-size=SIZE\n"
-"                       Size of blocks to use for I/O (in bytes, followed\n"
-"                         by KB, MB or GB)\n"
+"                       用于 I/O 的块大小 (字节，后缀\n"
+"                         KB, MB 或 GB)\n"
 "  -D, --disk-sleep=TIME\n"
-"                       Time to sleep between iterations, in msec (default 100)\n"
-"  -f, --disk-path=PATH Path to a file/directory to use as a buffer (default\n"
-"                         /tmp); specify multiple times for additional paths\n"
+"                       迭代间的休眠时间，单位毫秒 (默认 100)\n"
+"  -f, --disk-path=PATH 用作缓冲区的文/目录路径 (默认\n"
+"                         /tmp); 可多次指定以添加更多路径\n"
 "";
-    printf("usage: %s", msg);
+    printf("用法: %s", msg);
     exit(0);
 }
 
@@ -937,20 +937,20 @@ int main(int argc, char **argv)
             case 'h': usage(); break;
             case 'b':
                 if (parse_size(optarg, &c_disk_churn_block_size) < 0) {
-                    err("Couldn't parse disk block size '%s'\n", optarg);
+                    err("无法解析磁盘块大小 '%s'\n", optarg);
                     return 1;
                 }
                 break;
             case 'c':
                 if (parse_int_range(optarg, &c_cpu_util_l, &c_cpu_util_h) < 0) {
-                    err("Couldn't parse CPU utilization setting '%s'\n",
+                    err("无法解析 CPU 利用率设置 '%s'\n",
                         optarg);
                     return 1;
                 }
                 break;
             case 'd':
                 if (parse_large_size(optarg, &c_disk_util) < 0) {
-                    err("Couldn't parse disk utilization filesize '%s'\n",
+                    err("无法解析磁盘利用率文件大小 '%s'\n",
                             optarg);
                     return 1;
                 }
@@ -977,7 +977,7 @@ int main(int argc, char **argv)
                 break;
             case 'm':
                 if (parse_size(optarg, &c_mem_util) < 0) {
-                    err("Couldn't parse memory utilization size '%s'\n", optarg);
+                    err("无法解析内存利用率大小 '%s'\n", optarg);
                     return 1;
                 }
                 break;
@@ -989,19 +989,19 @@ int main(int argc, char **argv)
                 break;
             case 'p':
                 if (parse_timespan(optarg, &c_cpu_curve_peak) < 0) {
-                    err("Couldn't parse CPU curve peak '%s'; format is"
-                        " INTEGER[SUFFIX], where SUFFIX\n"
-                        "is one of 's' (seconds), 'm' (minutes), 'h' (hours)"
-                        ", or 'd' (days); e.g. \"2h\"\n", optarg);
+                    err("无法解析 CPU 曲线峰值 '%s'; 格式为"
+                        " 整数[后缀], 其中后缀\n"
+                        "是 's' (秒), 'm' (分), 'h' (时)"
+                        ", 或 'd' (天) 之一; 例如 \"2h\"\n", optarg);
                     return 1;
                 }
                 break;
             case 'P':
                 if (parse_timespan(optarg, &c_cpu_curve_period) < 0) {
-                    err("Couldn't parse CPU curve period '%s'; format is"
-                        " INTEGER[SUFFIX], where SUFFIX\n"
-                        "is one of 's' (seconds), 'm' (minutes), 'h' (hours)"
-                        ", or 'd' (days); e.g. \"2h\"\n", optarg);
+                    err("无法解析 CPU 曲线周期 '%s'; 格式为"
+                        " 整数[后缀], 其中后缀\n"
+                        "是 's' (秒), 'm' (分), 'h' (时)"
+                        ", 或 'd' (天) 之一; 例如 \"2h\"\n", optarg);
                     return 1;
                 }
                 break;
@@ -1021,8 +1021,8 @@ int main(int argc, char **argv)
                     c_cpu_util_mode = UTIL_MODE_CURVE;
 #endif
                 else {
-                    err("Unrecognized CPU utilization mode '%s'; choose one"
-                        " of 'fixed' or 'curve'\n", optarg);
+                    err("无法识别的 CPU 利用率模式 '%s'; 请选择"
+                        " 'fixed' 或 'curve' 之一\n", optarg);
                     return 1;
                 }
                 break;
@@ -1039,14 +1039,14 @@ int main(int argc, char **argv)
     }
 
     if (c_cpu_util_l != c_cpu_util_h && c_cpu_util_mode == UTIL_MODE_FIXED) {
-        err("Fixed CPU usage mode selected, but CPU usage range %d-%d%%"
-            " given; %d%% will\nbe used.\n",
+        err("选择了固定 CPU 使用模式，但给出了 CPU 使用范围 %d-%d%%"
+            "; 将使用 %d%%。\n",
             c_cpu_util_l, c_cpu_util_h, c_cpu_util_l);
         c_cpu_util_h = c_cpu_util_l;
     }
     if (c_cpu_util_mode == UTIL_MODE_CURVE &&
         c_cpu_curve_peak > c_cpu_curve_period) {
-        err("Peak of CPU usage curve is outside curve frequency"
+        err("CPU 使用曲线的峰值在曲线频率之外"
             "(%ds > %ds)\n", c_cpu_curve_peak, c_cpu_curve_period);
         return 1;
     }
@@ -1058,13 +1058,13 @@ int main(int argc, char **argv)
     }
 
     if (c_disk_util != 0 && c_disk_churn_block_size < 4) {
-        err("Disk utilization block size must be at least 4 bytes\n");
+        err("磁盘利用率块大小必须至少为 4 字节\n");
         return 1;
     }
     if (c_disk_util != 0 && c_disk_util < c_disk_churn_block_size) {
-        err("Disk utilization size must be at least equal to the block size"
+        err("磁盘利用率大小必须至少等于块大小"
             " (%d < %d)\n"
-            "You can adjust the block size with (-b or --disk-block-size)\n",
+            "您可以使用 (-b 或 --disk-block-size) 调整块大小\n",
             c_disk_util, c_disk_churn_block_size);
         return 1;
     }
@@ -1087,7 +1087,7 @@ int main(int argc, char **argv)
         mem_pid = start_mem_whisker(c_mem_util); // forks
     }
     while (sleep(1) == 0)
-            say(2, "lookbusy (%d): waiting for spinners...\n", getpid());
+            say(2, "lookbusy (%d): 正在等待负载进程...\n", getpid());
     shutdown();
     return 0;
 }
