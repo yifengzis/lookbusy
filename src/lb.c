@@ -114,7 +114,7 @@ static int utc = 0;
 static int c_cpu_curve_period = 86400; /* seconds */
 static int c_cpu_curve_peak = 60 * 60 * 13; /* 1PM local time */
 
-static int c_cpu_util_l = 50, c_cpu_util_h = 50; /* percent */
+static int c_cpu_util_l = 0, c_cpu_util_h = 0; /* percent */
 static size_t c_mem_util = 0; /* bytes */
 static long c_mem_stir_sleep = 1000; /* 1000 usec / 1 ms */
 static off_t c_disk_util = 0; /* MB */
@@ -872,7 +872,7 @@ static void usage()
 "  -q, --quiet          静默模式，仅在出错时输出\n"
 "CPU 使用选项:\n"
 "  -c, --cpu-util=PCT,  每个 CPU 的期望利用率，百分比 (默认\n"
-"      --cpu-util=RANGE   50%)。如果选择了 'curve' (曲线) 模式，\n"
+"      --cpu-util=RANGE   0%)。如果选择了 'curve' (曲线) 模式，\n"
 "                         应提供 MIN-MAX 形式的范围。\n"
 "  -n, --ncpus=NUM      保持忙碌的 CPU 数量 (默认: 自动检测)\n"
 "  -r, --cpu-mode=MODE  利用率模式 ('fixed' 或 'curve'，参见 lookbusy(1))\n"
