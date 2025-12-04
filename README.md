@@ -12,6 +12,7 @@
     *   自动检测多核 CPU 并启动对应数量的进程。
 *   **内存负载**:
     *   分配并持续访问指定大小的内存，防止被交换出（Swap）。
+    *   支持正弦曲线波动内存使用量。
 *   **磁盘负载**:
     *   在指定目录生成文件并进行读写操作，产生 I/O 压力。
 
@@ -66,6 +67,11 @@
     ./targets/lookbusy -m 1GB
     ```
 
+*   **内存负载 (曲线模式)**: 内存使用在 512MB 到 1GB 之间波动，周期为 24 小时，峰值在下午 2 点 (14h)
+    ```bash
+    ./targets/lookbusy -m 512MB-1GB -R curve --mem-curve-period 24h --mem-curve-peak 14h
+    ```
+
 *   **磁盘负载**: 在 `/tmp` 目录下生成 10GB 文件并进行 I/O 操作
     ```bash
     ./targets/lookbusy -d 10GB -f /tmp
@@ -87,7 +93,8 @@
   -c, --cpu-util=PCT   CPU 利用率百分比
   -n, --ncpus=NUM      CPU 核心数
   -r, --cpu-mode=MODE  利用率模式 ('fixed' 或 'curve')
-  -m, --mem-util=SIZE  内存使用量
+  -m, --mem-util=SIZE  内存使用量 (支持范围)
+  -R, --mem-mode=MODE  内存模式 ('fixed' 或 'curve')
   -d, --disk-util=SIZE 磁盘文件大小
   ...
 ```

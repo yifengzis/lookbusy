@@ -109,13 +109,22 @@ enum cpu_util_mode {
 };
 enum cpu_util_mode c_cpu_util_mode = UTIL_MODE_FIXED;
 
+enum mem_util_mode {
+    MEM_UTIL_MODE_FIXED = 0,
+    MEM_UTIL_MODE_CURVE
+};
+enum mem_util_mode c_mem_util_mode = MEM_UTIL_MODE_FIXED;
+
 static int utc = 0;
 
 static int c_cpu_curve_period = 86400; /* seconds */
 static int c_cpu_curve_peak = 60 * 60 * 13; /* 1PM local time */
 
+static int c_mem_curve_period = 86400; /* seconds */
+static int c_mem_curve_peak = 60 * 60 * 13; /* 1PM local time */
+
 static int c_cpu_util_l = 0, c_cpu_util_h = 0; /* percent */
-static size_t c_mem_util = 0; /* bytes */
+static size_t c_mem_util_min = 0, c_mem_util_max = 0; /* bytes */
 static long c_mem_stir_sleep = 1000; /* 1000 usec / 1 ms */
 static off_t c_disk_util = 0; /* MB */
 static char **c_disk_churn_paths;
@@ -263,6 +272,24 @@ static int parse_size(const char *str, size_t *r)
             tolower(*(str + matches[2].rm_so)) == 'g' ? 1024 * 1024 * 1024 : 
             tolower(*(str + matches[2].rm_so)) == 'm' ? 1024 * 1024 : 
             tolower(*(str + matches[2].rm_so)) == 'k' ? 1024 : 1);
+    return 0;
+}
+
+static int parse_size_range(const char *str, size_t *start, size_t *end)
+{
+    char *dash = strchr(str, '-');
+    if (dash) {
+        char *first = strndup(str, dash - str);
+        if (parse_size(first, start) < 0) {
+            free(first);
+            return -1;
+        }
+        free(first);
+        if (parse_size(dash + 1, end) < 0) return -1;
+    } else {
+        if (parse_size(str, start) < 0) return -1;
+        *end = *start;
+    }
     return 0;
 }
 
@@ -554,6 +581,37 @@ static double cpu_spin_compute_util(enum cpu_util_mode mode, int l, int h,
     return -1;
 }
 
+static size_t mem_compute_util(enum mem_util_mode mode, size_t min, size_t max,
+                                    time_t curtime)
+{
+    static long time_offset = -1;
+
+    if (time_offset == -1) {
+        if (!utc) {
+#ifdef HAVE_TZSET
+            tzset();
+#endif
+            time_offset = -timezone;
+        } else {
+            time_offset = 0;
+        }
+        time_offset += c_mem_curve_peak;
+    }
+
+    if (mode == MEM_UTIL_MODE_FIXED) return max;
+    if (mode == MEM_UTIL_MODE_CURVE) {
+        if (curtime == 0)
+            curtime = time(NULL);
+        long offset_in_interval = (curtime + time_offset) % c_mem_curve_period;
+        double fraction = (double)offset_in_interval / (double)c_mem_curve_period;
+        
+        double level = (double)min +
+            (double)(max - min) * (cos(fraction * PI * 2) + 1)/2;
+        return (size_t)level;
+    }
+    return 0;
+}
+
 static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *dummy, void *dummy2)
 {
     uint64_t busycount;
@@ -634,45 +692,88 @@ static void cpu_spin(long long ncpus, long long util_l, long long util_h, void *
     _exit(1);
 }
 
-static void mem_stir(long long asz, long long dummy, long long dummy2, void *dummyp, void *dummyp2)
+static void mem_stir(long long min_sz, long long max_sz, long long dummy, void *dummyp, void *dummyp2)
 {
-    char *mem_stir_buffer;
     char *p;
     const size_t pagesize = LB_PAGE_SIZE;
-    const size_t sz = asz;
+    size_t cur_sz = 0;
+    size_t s_off = 0;
+    size_t d_off = 0;
 
-    say(1, "mem_stir (%d): 正在扰动 %llu 字节...\n", getpid(), sz);
-    if ((mem_stir_buffer = (char *)malloc(sz)) == NULL) {
-        perror("malloc");
-        _exit(1);
-    }
+    say(1, "mem_stir (%d): 正在扰动内存 %llu-%llu 字节...\n", getpid(), min_sz, max_sz);
 
-    say(2, "mem_stir (%d): 正在弄脏缓冲区...", getpid());
-    for (p = mem_stir_buffer; p < mem_stir_buffer + sz; p++) {
-        *p = (char)((uintptr_t)p & 0xff);
-    }
-    say(2, "完成\n");
-
-    char *sp = mem_stir_buffer;
-    char *dp = mem_stir_buffer;
     while (1) {
-        const size_t copysz = pagesize;
+        size_t target_sz = mem_compute_util(c_mem_util_mode, (size_t)min_sz, (size_t)max_sz, 0);
+        
+        /* Align to page size to avoid partial page issues */
+        if (target_sz > 0)
+            target_sz = ((target_sz - 1) / pagesize + 1) * pagesize;
+
+        if (target_sz != cur_sz) {
+            say(2, "mem_stir (%d): 调整内存大小 %zu -> %zu\n", getpid(), cur_sz, target_sz);
+            
+            char *new_buf = NULL;
+            if (target_sz > 0) {
+                new_buf = (char *)realloc(mem_stir_buffer, target_sz);
+                if (new_buf == NULL) {
+                    perror("realloc");
+                    /* Try to continue with old buffer if possible, or exit? 
+                       Let's exit to be safe/loud. */
+                    _exit(1);
+                }
+                mem_stir_buffer = new_buf;
+            } else {
+                if (mem_stir_buffer) free(mem_stir_buffer);
+                mem_stir_buffer = NULL;
+            }
+
+            if (target_sz > cur_sz) {
+                say(2, "mem_stir (%d): 正在弄脏新内存...", getpid());
+                for (p = mem_stir_buffer + cur_sz; p < mem_stir_buffer + target_sz; p++) {
+                    *p = (char)((uintptr_t)p & 0xff);
+                }
+                say(2, "完成\n");
+            }
+            cur_sz = target_sz;
+        }
+
+        if (cur_sz > 0) {
+            const size_t copysz = pagesize;
+            
+            /* Ensure offsets are within bounds */
+            if (s_off >= cur_sz) s_off = 0;
+            if (d_off >= cur_sz) d_off = 0;
+            
+            /* Check if we have enough space for the copy operation */
+            if (cur_sz >= copysz) {
+                /* Adjust copy size if near end of buffer */
+                size_t actual_copysz = copysz;
+                if (d_off + actual_copysz > cur_sz) actual_copysz = cur_sz - d_off;
+                if (s_off + actual_copysz > cur_sz) actual_copysz = cur_sz - s_off; // Should use min of both?
+                // Actually, original logic wrapped around. Let's stick to simple wrap logic.
+                // But memmove needs valid ranges.
+                
+                // Original logic:
+                // sp += pagesize; dp += pagesize*5;
+                // if (sp >= end) sp = start;
+                
+                // Let's just do one page at a time.
+                
+                // To be safe with reallocs, we use offsets.
+                // If offsets + copysz > cur_sz, we just wrap now.
+                if (s_off + copysz > cur_sz) s_off = 0;
+                if (d_off + copysz > cur_sz) d_off = 0;
 
 #ifdef HAVE_MEMMOVE
-        memmove(dp, sp, copysz);
+                memmove(mem_stir_buffer + d_off, mem_stir_buffer + s_off, copysz);
 #else
-        memcpy(dp, sp, copysz);
+                memcpy(mem_stir_buffer + d_off, mem_stir_buffer + s_off, copysz);
 #endif
-        sp += pagesize * 1;
-        dp += pagesize * 5;
-        if (sp >= mem_stir_buffer + sz) {
-            say(2, "mem_stir (%d): 读取位置回绕\n", getpid());
-            sp = mem_stir_buffer;
+                s_off += pagesize * 1;
+                d_off += pagesize * 5;
+            }
         }
-        if (dp >= mem_stir_buffer + sz) {
-            say(2, "mem_stir (%d): 写入位置回绕\n", getpid());
-            dp = mem_stir_buffer;
-        }
+        
         usleep(c_mem_stir_sleep);
     }
     _exit(1);
@@ -857,9 +958,9 @@ static pid_t *start_disk_stirrer(off_t util, char **paths, size_t paths_n)
     return p;
 }
 
-static pid_t start_mem_whisker(size_t sz)
+static pid_t start_mem_whisker(size_t min, size_t max)
 {
-    return fork_and_call("mem stirrer", mem_stir, sz, 0, 0, NULL, NULL);
+    return fork_and_call("mem stirrer", mem_stir, min, max, 0, NULL, NULL);
 }
 
 static void usage()
@@ -883,9 +984,15 @@ static void usage()
 "                       利用率曲线周期的持续时间，单位秒 (后缀\n"
 "		       'm', 'h', 'd' 表示其他单位)\n"
 "内存使用选项:\n"
-"  -m, --mem-util=SIZE   使用的内存量 (字节，后缀 KB, MB,\n"
-"                         或 GB 表示其他单位; 参见 lookbusy(1))\n"
+"  -m, --mem-util=SIZE,  使用的内存量 (字节，后缀 KB, MB,\n"
+"      --mem-util=RANGE   或 GB 表示其他单位)。如果选择了 'curve' 模式，\n"
+"                         应提供 MIN-MAX 形式的范围。\n"
 "  -M, --mem-sleep=TIME 迭代间的休眠时间，单位微秒 (默认 1000)\n"
+"  -R, --mem-mode=MODE  内存使用模式 ('fixed' 或 'curve')\n"
+"  --mem-curve-peak=TIME\n"
+"                       内存曲线周期内峰值利用率的偏移量\n"
+"  --mem-curve-period=TIME\n"
+"                       内存利用率曲线周期的持续时间\n"
 "磁盘使用选项:\n"
 "  -d, --disk-util=SIZE 用于磁盘扰动的文件大小 (字节，\n"
 "                         后缀 KB, MB, GB 或 TB 表示其他单位)\n"
@@ -926,11 +1033,14 @@ int main(int argc, char **argv)
 
         { "mem-util", 1, NULL, 'm' },
         { "mem-sleep", 1, NULL, 'M' },
+        { "mem-mode", 1, NULL, 'R' },
+        { "mem-curve-peak", 1, NULL, 1001 },
+        { "mem-curve-period", 1, NULL, 1002 },
         { 0, 0, 0, 0 }
     };
 
     while ((c = getopt_long(argc, argv,
-                            "n:b:c:d:D:f:m:M:p:P:r:qvVhu",
+                            "n:b:c:d:D:f:m:M:p:P:r:R:qvVhu",
                             long_options, NULL)) != -1) {
         switch (c) {
             default:
@@ -976,13 +1086,43 @@ int main(int argc, char **argv)
                 c_disk_churn_paths[c_disk_churn_paths_n++] = strdup(optarg);
                 break;
             case 'm':
-                if (parse_size(optarg, &c_mem_util) < 0) {
+                if (parse_size_range(optarg, &c_mem_util_min, &c_mem_util_max) < 0) {
                     err("无法解析内存利用率大小 '%s'\n", optarg);
                     return 1;
                 }
                 break;
             case 'M':
                 c_mem_stir_sleep = atol(optarg);
+                break;
+            case 'R':
+#ifdef HAVE_STRCASECMP
+                if (strcasecmp(optarg, "fixed") == 0)
+                    c_mem_util_mode = MEM_UTIL_MODE_FIXED;
+                else if (strcasecmp(optarg, "curve") == 0)
+                    c_mem_util_mode = MEM_UTIL_MODE_CURVE;
+#else
+                if (strcmp(optarg, "fixed") == 0)
+                    c_mem_util_mode = MEM_UTIL_MODE_FIXED;
+                else if (strcmp(optarg, "curve") == 0)
+                    c_mem_util_mode = MEM_UTIL_MODE_CURVE;
+#endif
+                else {
+                    err("无法识别的内存利用率模式 '%s'; 请选择"
+                        " 'fixed' 或 'curve' 之一\n", optarg);
+                    return 1;
+                }
+                break;
+            case 1001: /* mem-curve-peak */
+                if (parse_timespan(optarg, &c_mem_curve_peak) < 0) {
+                    err("无法解析内存曲线峰值 '%s'\n", optarg);
+                    return 1;
+                }
+                break;
+            case 1002: /* mem-curve-period */
+                if (parse_timespan(optarg, &c_mem_curve_period) < 0) {
+                    err("无法解析内存曲线周期 '%s'\n", optarg);
+                    return 1;
+                }
                 break;
             case 'n':
                 ncpus = atoi(optarg);
@@ -1051,6 +1191,19 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (c_mem_util_min != c_mem_util_max && c_mem_util_mode == MEM_UTIL_MODE_FIXED) {
+        err("选择了固定内存使用模式，但给出了内存使用范围 %zu-%zu"
+            "; 将使用 %zu。\n",
+            c_mem_util_min, c_mem_util_max, c_mem_util_max);
+        c_mem_util_min = c_mem_util_max;
+    }
+    if (c_mem_util_mode == MEM_UTIL_MODE_CURVE &&
+        c_mem_curve_peak > c_mem_curve_period) {
+        err("内存使用曲线的峰值在曲线频率之外"
+            "(%ds > %ds)\n", c_mem_curve_peak, c_mem_curve_period);
+        return 1;
+    }
+
     if (c_disk_churn_paths == NULL && c_disk_util != 0) {
         c_disk_churn_paths = (char **)malloc(sizeof(*c_disk_churn_paths) * 1);
         *c_disk_churn_paths = strdup("/tmp");
@@ -1083,8 +1236,8 @@ int main(int argc, char **argv)
                                        c_disk_churn_paths_n); // forks
         n_disk_pids = c_disk_churn_paths_n;
     }
-    if (c_mem_util != 0) {
-        mem_pid = start_mem_whisker(c_mem_util); // forks
+    if (c_mem_util_max != 0) {
+        mem_pid = start_mem_whisker(c_mem_util_min, c_mem_util_max); // forks
     }
     while (sleep(1) == 0)
             say(2, "lookbusy (%d): 正在等待负载进程...\n", getpid());
